@@ -1,0 +1,11 @@
+orderId,address,weight,mode,priority
+ORD001,"123 Main St, Zone A, Erode",5.5,house,normal
+ORD002,"456 Market Rd, Zone A, Erode",2.0,office,high
+ORD003,"789 Hill Top Apts, Zone A, Erode",10.0,apartment,urgent
+ORD004,"321 River Side, Zone B, Bhavani",3.5,house,normal
+ORD005,"654 Industrial Estate, Zone B, Bhavani",20.0,office,normal
+ORD006,"987 Luxury Condos, Zone B, Bhavani",8.0,apartment,high
+ORD007,"111 Temple St, Zone C, Perundurai",1.0,notMentioned,normal
+ORD008,"222 College Rd, Zone C, Perundurai",4.5,office,urgent
+ORD009,"333 Farm House, Zone C, Perundurai",15.0,house,normal
+ORD010,"444 High Rise, Zone A, Erode",12.0,apartment,urgent

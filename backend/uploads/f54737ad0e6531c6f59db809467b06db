@@ -1,0 +1,13 @@
+order_id,address,weight,mode,priority
+ORD101,"Surampatti, Erode - 638009",12,apartment,high
+ORD102,"Perundurai, Erode District - 638052",8,house,normal
+ORD103,"Bhavani, Erode District - 638301",15,office,urgent
+ORD104,"Chennimalai, Erode District - 638051",10,house,normal
+ORD105,"Gobichettipalayam, Erode District - 638452",18,apartment,high
+ORD106,"Sathyamangalam, Erode District - 638402",20,office,urgent
+ORD107,"Anthiyur, Erode District - 638501",6,house,normal
+ORD108,"Modakurichi, Erode District - 638104",9,notMentioned,normal
+ORD109,"Kodumudi, Erode District - 638151",14,apartment,high
+ORD110,"Nambiyur, Erode District - 638458",7,house,normal
+ORD111,"Ammapet, Erode District - 638311",11,office,high
+ORD112,"Kangeyam, Tiruppur District - 638701",16,apartment,urgent

@@ -1,0 +1,30 @@
+order_id,address,weight,mode,priority
+ORD001,12 Gandhi Nagar 1st Street Surampatti Erode 638009,8,house,normal
+ORD002,45 Teachers Colony Surampatti Erode 638009,15,apartment,high
+ORD003,3 VOC Nagar Surampatti Erode 638009,5,house,normal
+ORD004,Surampatti Housing Board Phase 2 Erode 638009,20,apartment,urgent
+ORD005,8 Anna Nagar Surampatti Erode 638009,12,house,normal
+
+ORD006,22 Periyar Nagar Erode 638001,10,house,normal
+ORD007,Periyar Nagar Main Road Erode 638001,18,apartment,high
+ORD008,Near Erode Bus Stand Chidambaram Colony Erode 638001,7,notMentioned,normal
+ORD009,14 EVN Road Erode 638001,25,office,urgent
+ORD010,Karungalpalayam Main Road Erode 638003,30,office,high
+
+ORD011,56 Sampath Nagar Karungalpalayam Erode 638003,9,house,normal
+ORD012,Karungalpalayam Housing Unit Erode 638003,22,apartment,high
+ORD013,11 Railway Colony Karungalpalayam Erode 638003,6,house,normal
+ORD014,Near Cauvery Road Karungalpalayam Erode 638003,28,office,urgent
+ORD015,Karungalpalayam Market Area Erode 638003,14,notMentioned,normal
+
+ORD016,18 Teachers Colony Sathy Road Erode 638003,16,apartment,high
+ORD017,Sathy Road Near GH Erode 638003,4,house,normal
+ORD018,Near Erode GH Quarters Erode 638003,12,apartment,normal
+ORD019,Sathy Road Industrial Area Erode 638003,35,office,urgent
+ORD020,Veerappan Chatram Erode 638004,10,house,normal
+
+ORD021,Veerappan Chatram Main Road Erode 638004,18,apartment,high
+ORD022,Near CSI School Veerappan Chatram Erode 638004,6,house,normal
+ORD023,Palaniappa Street Veerappan Chatram Erode 638004,9,house,normal
+ORD024,Veerappan Chatram Commercial Complex Erode 638004,27,office,urgent
+ORD025,Near Railway Station Erode Junction 638002,20,notMentioned,high
