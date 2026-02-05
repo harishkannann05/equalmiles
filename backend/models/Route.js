@@ -14,7 +14,8 @@ module.exports = mongoose.model(
         },
         weight: Number,
         mode: { type: String, enum: ['apartment', 'house', 'office', 'notmentioned'], default: 'notmentioned' },
-        priority: { type: String, enum: ['normal', 'high', 'urgent'], default: 'normal' }
+        priority: { type: String, enum: ['normal', 'high', 'urgent'], default: 'normal' },
+        status: { type: String, enum: ['pending', 'completed'], default: 'pending' }
       }
     ],
 

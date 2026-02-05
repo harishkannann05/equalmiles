@@ -45,4 +45,33 @@ router.get("/driver/:driverId", async (req, res) => {
     }
 });
 
+// Update Stop Status
+router.patch("/:routeId/stop-status", async (req, res) => {
+    try {
+        const { routeId } = req.params;
+        const { index, status } = req.body;
+
+        const route = await Route.findById(routeId);
+        if (!route) return res.status(404).json({ message: "Route not found" });
+
+        if (!route.orders[index]) return res.status(400).json({ message: "Invalid stop index" });
+
+        route.orders[index].status = status;
+
+        // Check if all stops completed
+        const allCompleted = route.orders.every(o => o.status === 'completed');
+        if (allCompleted) {
+            route.status = 'completed';
+        } else {
+            route.status = 'assigned';
+        }
+
+        await route.save();
+        res.json(route);
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: "Server error" });
+    }
+});
+
 module.exports = router;

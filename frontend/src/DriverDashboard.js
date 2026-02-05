@@ -45,12 +45,7 @@ const DriverDashboard = () => {
     // Layer group ref to manage clean updates
     const layerGroupRef = useRef(null);
 
-    const handleLogout = () => {
-        localStorage.clear();
-        navigate('/');
-    };
-
-    const drawRouteOnMap = React.useCallback((routeData) => {
+    const drawRouteOnMap = React.useCallback(async (routeData) => {
         if (!mapInstanceRef.current || !routeData) return;
         const map = mapInstanceRef.current;
 
@@ -72,7 +67,6 @@ const DriverDashboard = () => {
 
         // --- Nearest Neighbor Algorithm (Client-Side TSP) ---
         // Sort the entire Order objects, not just coordinates
-
         const sortedOrders = [];
         let currentPos = office;
         const unvisited = [...rawOrders];
@@ -81,14 +75,15 @@ const DriverDashboard = () => {
             let nearestIndex = -1;
             let minDist = Infinity;
 
-            unvisited.forEach((orderObj, index) => {
+            for (let index = 0; index < unvisited.length; index++) {
+                const orderObj = unvisited[index];
                 const stop = orderObj.actualCoordinates;
                 const d = Math.sqrt(Math.pow(stop[0] - currentPos[0], 2) + Math.pow(stop[1] - currentPos[1], 2));
                 if (d < minDist) {
                     minDist = d;
                     nearestIndex = index;
                 }
-            });
+            }
 
             if (nearestIndex !== -1) {
                 const nextOrder = unvisited.splice(nearestIndex, 1)[0];
@@ -99,57 +94,104 @@ const DriverDashboard = () => {
 
         const points = [office, ...sortedOrders.map(o => o.actualCoordinates)];
 
-        // 1. Draw Path: OSRM Road Network
-        // Iterate through segments to get actual road geometry
-        for (let i = 0; i < points.length - 1; i++) {
-            const start = points[i];
-            const end = points[i + 1];
+        // --- DRAW MARKERS & FIT BOUNDS FIRST (Instant Feedback) ---
 
-            const url = `https://router.project-osrm.org/route/v1/driving/${start[0]},${start[1]};${end[0]},${end[1]}?overview=full&geometries=geojson`;
-
-            fetch(url)
-                .then(res => res.json())
-                .then(data => {
-                    if (data.routes && data.routes.length > 0) {
-                        const route = data.routes[0];
-                        const coords = route.geometry.coordinates.map(c => [c[1], c[0]]);
-
-                        // Draw ROAD path (Solid Blue)
-                        L.polyline(coords, {
-                            color: '#6366f1',
-                            weight: 6,
-                            opacity: 0.8,
-                            lineJoin: 'round'
-                        }).addTo(layerGroup);
-                    } else {
-                        console.warn("OSRM returned no route for segment.");
-                    }
-                })
-                .catch(err => {
-                    console.error("OSRM Error:", err);
-                });
-        }
-
-        // 2. Draw Office
+        // 1. Draw Office
         L.marker([office[1], office[0]]).addTo(layerGroup).bindPopup("<b>🏁 Start Point (Office)</b>");
 
-        // 3. Draw Stops (in Optimized Order)
+        // 2. Draw Stops
         sortedOrders.forEach((orderObj, i) => {
             const s = orderObj.actualCoordinates;
 
             L.circleMarker([s[1], s[0]], {
                 color: 'white',
-                fillColor: '#10b981',
+                fillColor: 'blue',
                 fillOpacity: 1,
                 radius: 8,
                 weight: 2
             }).addTo(layerGroup).bindPopup(`<b>Stop #${i + 1}</b><br>${orderObj.address}`);
         });
 
-        // Fit bounds
-        const bounds = L.latLngBounds(points.map(p => [p[1], p[0]]));
-        map.fitBounds(bounds.pad(0.1));
+        // 3. Fit Bounds Immediately
+        if (map && map.getContainer()) {
+            try {
+                const bounds = L.latLngBounds(points.map(p => [p[1], p[0]]));
+                if (bounds.isValid()) {
+                    map.fitBounds(bounds.pad(0.1));
+                }
+            } catch (err) {
+                console.warn("Map fitBounds failed", err);
+            }
+        }
+
+        // --- FETCH & DRAW ROUTE (Async Segments) ---
+        // Iterate through segments to get actual road geometry
+        for (let i = 0; i < points.length - 1; i++) {
+            const start = points[i];
+            const end = points[i + 1];
+
+            if (!start || !end || isNaN(start[0]) || isNaN(start[1]) || isNaN(end[0]) || isNaN(end[1])) continue;
+
+            const url = `https://router.project-osrm.org/route/v1/driving/${start[0]},${start[1]};${end[0]},${end[1]}?overview=full&geometries=geojson`;
+
+            let success = false;
+            try {
+                const res = await fetch(url);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data.routes && data.routes.length > 0) {
+                        const route = data.routes[0];
+                        const coords = route.geometry.coordinates.map(c => [c[1], c[0]]);
+
+                        // Draw ROAD path (Solid Blue)
+                        L.polyline(coords, {
+                            color: '#007bff',
+                            weight: 6,
+                            opacity: 0.8,
+                            lineJoin: 'round'
+                        }).addTo(layerGroup);
+                        success = true;
+                    }
+                }
+            } catch (err) {
+                console.error("OSRM Error:", err);
+            }
+
+            // Fallback: Dashed line if OSRM failed
+            if (!success) {
+                L.polyline([[start[1], start[0]], [end[1], end[0]]], {
+                    color: '#007bff',
+                    weight: 4,
+                    opacity: 0.5,
+                    dashArray: '10, 10'
+                }).addTo(layerGroup);
+            }
+
+            // Delay to prevent Rate Limiting (429)
+            await new Promise(r => setTimeout(r, 400));
+        }
     }, []); // no deps needed
+
+    const handleToggleStop = async (index, currentStatus) => {
+        if (!route) return;
+
+        const newStatus = currentStatus === 'completed' ? 'pending' : 'completed';
+
+        try {
+            const res = await fetch(`/api/routes/${route._id}/stop-status`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ index, status: newStatus })
+            });
+
+            if (res.ok) {
+                // Refresh data
+                fetchData();
+            }
+        } catch (err) {
+            console.error("Failed to toggle stop", err);
+        }
+    };
 
     const fetchData = React.useCallback(async () => {
         try {
@@ -412,7 +454,8 @@ const DriverDashboard = () => {
                                             const address = typeof order === 'string' ? order : (order.address || "Unknown Address");
                                             const mode = typeof order === 'object' ? order.mode : "N/A";
                                             const priority = typeof order === 'object' ? order.priority : "Normal";
-                                            const weight = typeof order === 'object' ? order.weight : 0;
+                                            // Removed unused 'weight' variable here
+                                            const isCompleted = order.status === 'completed';
 
                                             return (
                                                 <div
@@ -422,72 +465,62 @@ const DriverDashboard = () => {
                                                         alignItems: 'flex-start',
                                                         gap: '1rem',
                                                         padding: '1rem',
-                                                        background: 'rgba(255,255,255,0.03)',
+                                                        background: isCompleted ? '#f0fdf4' : 'white',
                                                         borderRadius: 'var(--radius-md)',
-                                                        border: '1px solid var(--border)',
-                                                        transition: 'var(--transition)'
-                                                    }}
-                                                    onMouseEnter={(e) => {
-                                                        e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-                                                        e.currentTarget.style.borderColor = 'var(--primary)';
-                                                    }}
-                                                    onMouseLeave={(e) => {
-                                                        e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
-                                                        e.currentTarget.style.borderColor = 'var(--border)';
+                                                        border: isCompleted ? '1px solid #bbf7d0' : '1px solid var(--border-light)',
+                                                        transition: 'var(--transition)',
+                                                        opacity: isCompleted ? 0.8 : 1
                                                     }}
                                                 >
                                                     <div style={{
-                                                        width: '36px',
-                                                        height: '36px',
-                                                        background: 'var(--primary)',
+                                                        width: '32px',
+                                                        height: '32px',
+                                                        background: isCompleted ? '#10b981' : '#E2A16F',
                                                         color: 'white',
                                                         borderRadius: '50%',
                                                         display: 'flex',
                                                         alignItems: 'center',
                                                         justifyContent: 'center',
                                                         fontWeight: 'bold',
-                                                        fontSize: '0.95rem',
-                                                        flexShrink: 0
+                                                        fontSize: '0.9rem',
+                                                        flexShrink: 0,
+                                                        marginTop: '2px'
                                                     }}>
-                                                        {i + 1}
+                                                        {isCompleted ? '✓' : i + 1}
                                                     </div>
                                                     <div style={{ flex: 1 }}>
-                                                        <div style={{ fontWeight: '600', fontSize: '1rem', marginBottom: '0.5rem', color: 'var(--text-main)' }}>
+                                                        <div style={{
+                                                            fontWeight: '600',
+                                                            fontSize: '0.95rem',
+                                                            marginBottom: '0.5rem',
+                                                            color: isCompleted ? '#15803d' : 'var(--text-main)',
+                                                            textDecoration: isCompleted ? 'line-through' : 'none'
+                                                        }}>
                                                             {address}
                                                         </div>
                                                         {typeof order === 'object' && (
                                                             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                                                <span style={{
-                                                                    fontSize: '0.75rem',
-                                                                    padding: '0.25rem 0.5rem',
-                                                                    borderRadius: '4px',
-                                                                    background: 'rgba(255,255,255,0.1)',
-                                                                    border: '1px solid rgba(255,255,255,0.2)'
-                                                                }}>
-                                                                    📦 {mode}
-                                                                </span>
-                                                                <span style={{
-                                                                    fontSize: '0.75rem',
-                                                                    padding: '0.25rem 0.5rem',
-                                                                    borderRadius: '4px',
-                                                                    background: priority === 'High' ? 'rgba(244, 63, 94, 0.2)' : 'rgba(16, 185, 129, 0.2)',
-                                                                    color: priority === 'High' ? 'var(--accent)' : 'var(--secondary)',
-                                                                    border: '1px solid currentcolor',
-                                                                    fontWeight: '600'
-                                                                }}>
-                                                                    {priority === 'High' ? '🚨' : '🟢'} {priority}
-                                                                </span>
-                                                                <span style={{
-                                                                    fontSize: '0.75rem',
-                                                                    padding: '0.25rem 0.5rem',
-                                                                    borderRadius: '4px',
-                                                                    background: 'rgba(255,255,255,0.1)'
-                                                                }}>
-                                                                    ⚖️ {weight}kg
-                                                                </span>
+                                                                <span style={{ fontSize: '0.75rem', padding: '2px 8px', borderRadius: '12px', background: '#f5f5f5', color: '#666' }}>📦 {mode}</span>
+                                                                <span style={{ fontSize: '0.75rem', padding: '2px 8px', borderRadius: '12px', background: priority === 'High' ? '#fee2e2' : '#dcfce7', color: priority === 'High' ? '#ef4444' : '#16a34a', fontWeight: 'bold' }}>{priority}</span>
                                                             </div>
                                                         )}
                                                     </div>
+                                                    <button
+                                                        onClick={() => handleToggleStop(i, order.status)}
+                                                        style={{
+                                                            padding: '6px 12px',
+                                                            borderRadius: '6px',
+                                                            border: isCompleted ? '1px solid #10b981' : 'none',
+                                                            background: isCompleted ? 'white' : '#10b981',
+                                                            color: isCompleted ? '#10b981' : 'white',
+                                                            cursor: 'pointer',
+                                                            fontSize: '0.8rem',
+                                                            fontWeight: '600',
+                                                            transition: 'all 0.2s'
+                                                        }}
+                                                    >
+                                                        {isCompleted ? 'Undo' : 'Done'}
+                                                    </button>
                                                 </div>
                                             );
                                         })}

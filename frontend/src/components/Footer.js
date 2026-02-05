@@ -1,5 +1,5 @@
 import React from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 const Footer = () => {
     const navigate = useNavigate();
@@ -62,24 +62,24 @@ const Footer = () => {
                         <h4 style={{ marginBottom: '1rem', color: 'var(--text-main)' }}>Quick Links</h4>
                         <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                             <li style={{ marginBottom: '0.75rem' }}>
-                                <a onClick={() => navigate('/')} style={{ color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.9rem', transition: 'var(--transition)' }}>
+                                <Link to="/" style={{ color: 'var(--text-muted)', textDecoration: 'none', cursor: 'pointer', fontSize: '0.9rem', transition: 'var(--transition)' }}>
                                     Home
-                                </a>
+                                </Link>
                             </li>
                             <li style={{ marginBottom: '0.75rem' }}>
-                                <a onClick={() => navigate('/driver/login')} style={{ color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.9rem' }}>
+                                <Link to="/driver/login" style={{ color: 'var(--text-muted)', textDecoration: 'none', cursor: 'pointer', fontSize: '0.9rem' }}>
                                     Driver Portal
-                                </a>
+                                </Link>
                             </li>
                             <li style={{ marginBottom: '0.75rem' }}>
-                                <a onClick={() => navigate('/driver/signup')} style={{ color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.9rem' }}>
+                                <Link to="/driver/signup" style={{ color: 'var(--text-muted)', textDecoration: 'none', cursor: 'pointer', fontSize: '0.9rem' }}>
                                     Driver Registration
-                                </a>
+                                </Link>
                             </li>
                             <li style={{ marginBottom: '0.75rem' }}>
-                                <a onClick={() => navigate('/admin/login')} style={{ color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.9rem' }}>
+                                <Link to="/admin/login" style={{ color: 'var(--text-muted)', textDecoration: 'none', cursor: 'pointer', fontSize: '0.9rem' }}>
                                     Admin Dashboard
-                                </a>
+                                </Link>
                             </li>
                         </ul>
                     </div>
@@ -126,8 +126,8 @@ const Footer = () => {
                         &copy; {new Date().getFullYear()} EqualMiles Transport Systems. All rights reserved.
                     </p>
                     <div style={{ display: 'flex', gap: '1.5rem' }}>
-                        <a style={{ fontSize: '0.85rem', color: 'var(--text-muted)', cursor: 'pointer' }}>Privacy Policy</a>
-                        <a style={{ fontSize: '0.85rem', color: 'var(--text-muted)', cursor: 'pointer' }}>Terms of Service</a>
+                        <a href="#" style={{ fontSize: '0.85rem', color: 'var(--text-muted)', cursor: 'pointer' }}>Privacy Policy</a>
+                        <a href="#" style={{ fontSize: '0.85rem', color: 'var(--text-muted)', cursor: 'pointer' }}>Terms of Service</a>
                     </div>
                 </div>
             </div>

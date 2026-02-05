@@ -11,6 +11,8 @@ L.Icon.Default.mergeOptions({
     shadowUrl: require('leaflet/dist/images/marker-shadow.png'),
 });
 
+const office = [77.710, 11.327];
+
 const MapDashboard = () => {
     const mapRef = useRef(null);
     const mapInstanceRef = useRef(null);
@@ -27,6 +29,9 @@ const MapDashboard = () => {
     // Modal State
     const [selectedDriver, setSelectedDriver] = useState(null);
     const [driverRoute, setDriverRoute] = useState(null);
+    const [assignmentHtml, setAssignmentHtml] = useState(null);
+    const [routesList, setRoutesList] = useState([]);
+    const [processing, setProcessing] = useState(false);
 
     // System State
     const [dutyLocked, setDutyLocked] = useState(false);
@@ -113,7 +118,6 @@ const MapDashboard = () => {
     // Data fetching and Effect moved to bottom to resolve hoisting issues
 
     // ================= HELPER CONSTANTS & FUNCTIONS =================
-    const office = [77.710, 11.327];
 
     const getCoordinates = (order) => {
         // 1. Try DB Coordinates
@@ -191,8 +195,8 @@ const MapDashboard = () => {
                 console.error("Routing Error", err);
             }
 
-            // Tiny pause between segments to avoid 429
-            await new Promise(r => setTimeout(r, 100));
+            // Pause between segments to avoid 429 (OSRM Public API limit)
+            await new Promise(r => setTimeout(r, 800));
         }
 
         // --- 3. Draw Markers (Sorted Order) ---
@@ -240,18 +244,109 @@ const MapDashboard = () => {
         }
     }, [drawMultiStopRoute]);
 
+    // --- Reactive HTML Generation for Results ---
+    useEffect(() => {
+        if (!routesList || routesList.length === 0) {
+            setAssignmentHtml(null);
+            return;
+        }
+
+        let html = "<h3 style='margin-top:0; color: var(--color-primary); font-size: 1.2rem; display: flex; alignItems: center; gap: 0.5rem;'>✅ Assignment Complete</h3>";
+        html += "<div style='display: flex; flex-direction: column; gap: 10px;'>";
+
+        // Sort routes by score (Hardest first)
+        const sortedRoutes = [...routesList].sort((a, b) => b.routeHardshipScore - a.routeHardshipScore);
+
+        console.log("DEBUG: Drivers List:", drivers);
+
+        sortedRoutes.forEach((route, i) => {
+            let driverId = route.assignedDriverId;
+            let foundName = null;
+
+            // Handle if assignedDriverId is actually a populated object (has name/email)
+            if (typeof driverId === 'object' && driverId !== null) {
+                if (driverId.name) foundName = driverId.name; // It was fully populated!
+                if (driverId._id) driverId = driverId._id;   // Extract ID if nested
+            }
+
+            // Ensure ID is a string for comparison
+            const lookupId = String(driverId);
+
+            // If we didn't find the name from the object itself, look it up
+            let matchedDriver = null;
+            if (typeof driverId === 'object' && driverId !== null && driverId.name) {
+                matchedDriver = driverId;
+            }
+            if (!matchedDriver) {
+                matchedDriver = drivers.find(d => String(d._id) === lookupId);
+            }
+
+            const driverName = matchedDriver ? matchedDriver.name : foundName || `Unknown (ID: ${lookupId})`;
+            // Zone comes from the ROUTE, not the driver
+            const driverZone = route.region || "N/A";
+
+            // Palette match
+            const colors = ["#E2A16F", "#86B0BD", "#D18F5A", "#6A9AA8", "#7BA888", "#D17A6F"];
+            const color = colors[i % colors.length];
+
+            html += `
+                <div style="border-left: 4px solid ${color}; background: var(--bg-input); padding: 12px; border-radius: 8px; border: 1px solid var(--border-light); box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <h4 style="margin: 0; color: var(--text-main); font-size: 1rem;">${driverName}</h4>
+                        <span style="background: ${color}20; color: ${color}; padding: 3px 8px; border-radius: 12px; font-weight: 600; font-size: 0.75rem; border: 1px solid ${color}40;">Score: ${route.routeHardshipScore?.toFixed(1)}</span>
+                    </div>
+                    <p style="margin: 0 0 8px 0; font-size: 0.85rem; color: var(--text-secondary); display: flex; align-items: center; gap: 5px;">
+                        📦 ${route.orders.length} Stops <span style="color: var(--border);">•</span> 🛣️ ${route.totalDistance} km <span style="color: var(--border);">•</span> 📍 ${driverZone}
+                    </p>
+                    <details style="margin-top: 5px;">
+                        <summary style="cursor: pointer; color: var(--color-primary); font-weight: 600; font-size: 0.85rem; user-select: none; padding: 4px 0;">View Stops</summary>
+                        <ul style="padding-left: 0; margin: 10px 0 0 0; list-style: none; display: flex; flex-direction: column; gap: 8px;">
+                            ${route.orders.map((o, idx) => {
+                const addr = o.address ? o.address.split(',')[0] : "Unknown Address";
+                return `
+                                <li style="border: 1px solid var(--border-light); border-radius: 8px; padding: 12px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+                                    <div style="display: flex; gap: 12px; align-items: start;">
+                                        <div style="
+                                            background: #E2A16F; color: white; width: 24px; height: 24px; 
+                                            border-radius: 50%; display: flex; align-items: center; justify-content: center; 
+                                            font-size: 0.85rem; font-weight: bold; flex-shrink: 0; margin-top: 2px;">
+                                            ${idx + 1}
+                                        </div>
+                                        <div style="flex: 1;">
+                                            <div style="font-weight: 600; margin-bottom: 4px; color: var(--text-main); font-size: 0.9rem;">${addr}</div>
+                                            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                                                <span style="font-size: 0.75rem; padding: 2px 8px; border-radius: 12px; background: #f5f5f5; color: #666; border: 1px solid #eee;">📦 ${o.mode || 'N/A'}</span>
+                                                <span style="font-size: 0.75rem; padding: 2px 8px; border-radius: 12px; background: ${o.priority === 'High' ? '#fee2e2' : '#dcfce7'}; color: ${o.priority === 'High' ? '#ef4444' : '#16a34a'}; border: 1px solid ${o.priority === 'High' ? '#fecaca' : '#bbf7d0'}; font-weight: 600;">${o.priority || 'Normal'}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </li>
+                            `;
+            }).join('')}
+                        </ul>
+                    </details>
+                </div>
+            `;
+        });
+        html += "</div>";
+        setAssignmentHtml(html);
+    }, [routesList, drivers]);
+
     const processCSV = async () => {
+        if (!dutyLocked) {
+            alert("⚠️ Usage Error: You must LOCK DUTY before assigning routes to ensure the driver list is finalized.");
+            return;
+        }
+
         const fileInput = document.getElementById("csvFile");
         const file = fileInput?.files[0];
         if (!file) return alert("Please select a CSV file first.");
 
+        setProcessing(true);
         const formData = new FormData();
         formData.append("file", file);
 
         try {
-            const resultsDiv = document.getElementById("results");
-            if (resultsDiv) resultsDiv.innerHTML = "<p style='color: var(--text-muted)'>Processing orders and assigning routes...</p>";
-
             const res = await fetch("/api/admin/upload-csv", {
                 method: "POST",
                 body: formData
@@ -260,90 +355,25 @@ const MapDashboard = () => {
             if (res.ok) {
                 const data = await res.json();
                 alert(`Success! Generated and assigned ${data.routes.length} routes.`);
-                fetchData(); // Refresh everything
 
-                if (resultsDiv) {
-                    let html = "<h3 style='margin-top:0; color: var(--color-primary); font-size: 1.2rem; display: flex; alignItems: center; gap: 0.5rem;'>✅ Assignment Complete</h3>";
-                    html += "<div style='display: flex; flex-direction: column; gap: 10px;'>";
-
-                    // Sort routes by score (Hardest first)
-                    const sortedRoutes = data.routes.sort((a, b) => b.routeHardshipScore - a.routeHardshipScore);
-
-                    sortedRoutes.forEach((route, i) => {
-                        // Find driver name from state
-                        const driver = onDutyDrivers.find(d => d._id === route.assignedDriverId);
-                        const driverName = driver ? driver.name : "Unknown Driver";
-                        // Palette match
-                        const colors = ["#E2A16F", "#86B0BD", "#D18F5A", "#6A9AA8", "#7BA888", "#D17A6F"];
-                        const color = colors[i % colors.length];
-
-                        html += `
-                                <div style="border-left: 4px solid ${color}; background: var(--bg-input); padding: 12px; border-radius: 8px; border: 1px solid var(--border-light); box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                                        <h4 style="margin: 0; color: var(--text-main); font-size: 1rem;">${driverName}</h4>
-                                        <span style="background: ${color}20; color: ${color}; padding: 3px 8px; border-radius: 12px; font-weight: 600; font-size: 0.75rem; border: 1px solid ${color}40;">Score: ${route.routeHardshipScore?.toFixed(1)}</span>
-                                    </div>
-                                    <p style="margin: 0 0 8px 0; font-size: 0.85rem; color: var(--text-secondary); display: flex; align-items: center; gap: 5px;">
-                                        📦 ${route.orders.length} Stops <span style="color: var(--border);">•</span> 🛣️ ${route.totalDistance} km
-                                    </p>
-                                    <details style="margin-top: 5px;">
-                                        <summary style="cursor: pointer; color: var(--color-primary); font-weight: 600; font-size: 0.85rem; user-select: none; padding: 4px 0;">View Stops</summary>
-                                        <ul style="padding-left: 0; margin: 10px 0 0 0; list-style: none; display: flex; flex-direction: column; gap: 8px;">
-                                            ${route.orders.map((o, idx) => {
-                            const addr = o.address ? o.address.split(',')[0] : "Unknown Address";
-                            return `
-                                                <li style="border: 1px solid var(--border-light); border-radius: 8px; padding: 12px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
-                                                    <div style="display: flex; gap: 12px; align-items: start;">
-                                                        <div style="
-                                                            background: #E2A16F; color: white; width: 24px; height: 24px; 
-                                                            border-radius: 50%; display: flex; align-items: center; justify-content: center; 
-                                                            font-size: 0.85rem; font-weight: bold; flex-shrink: 0; margin-top: 2px;">
-                                                            ${idx + 1}
-                                                        </div>
-                                                        <div style="flex: 1;">
-                                                            <div style="font-weight: 600; color: var(--text-main); font-size: 0.95rem; margin-bottom: 6px;">
-                                                                ${addr}
-                                                            </div>
-                                                            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-                                                                <span style="display: flex; align-items: center; gap: 4px; font-size: 0.75rem; color: var(--text-secondary); background: var(--bg-input); padding: 2px 8px; border-radius: 4px;">
-                                                                    📦 ${o.mode || 'not specified'}
-                                                                </span>
-                                                                <span style="display: flex; align-items: center; gap: 4px; font-size: 0.75rem; 
-                                                                    background: ${o.priority === 'High' ? '#D17A6F20' : '#7BA88820'}; 
-                                                                    color: ${o.priority === 'High' ? '#D17A6F' : '#7BA888'}; 
-                                                                    padding: 2px 8px; border-radius: 4px; border: 1px solid ${o.priority === 'High' ? '#D17A6F40' : '#7BA88840'};">
-                                                                    ${o.priority === 'High' ? '🔴 High' : '🟢 Normal'}
-                                                                </span>
-                                                                <span style="display: flex; align-items: center; gap: 4px; font-size: 0.75rem; color: var(--text-secondary); background: var(--bg-input); padding: 2px 8px; border-radius: 4px;">
-                                                                    ⚖️ ${o.weight ? o.weight + 'kg' : 'N/A'}
-                                                                </span>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </li>
-                                                `;
-                        }).join('')}
-                                        </ul>
-                                    </details>
-                                </div>
-                            `;
-                    });
-                    html += "</div>";
-                    resultsDiv.innerHTML = html;
-                }
+                // Update State to Trigger UI and Map
+                setRoutesList(data.routes);
 
                 // Visualize on Map immediately
                 if (mapInstanceRef.current) {
                     visualizeRoutes(data.routes);
                 }
+
+                fetchData();
             } else {
                 const err = await res.json();
                 alert("Error: " + (err.message || "Failed to process CSV"));
-                if (resultsDiv) resultsDiv.innerHTML = `<p style="color: #ef4444">Error: ${err.message}</p>`;
             }
         } catch (err) {
             console.error("Upload error:", err);
             alert("Failed to upload file: " + err.message);
+        } finally {
+            setProcessing(false);
         }
     };
 
@@ -361,10 +391,6 @@ const MapDashboard = () => {
         }
     };
 
-    const handleLogout = () => {
-        localStorage.clear();
-        navigate('/');
-    };
 
     const fetchData = React.useCallback(async () => {
         // Refresh Pending/Approved drivers
@@ -375,6 +401,8 @@ const MapDashboard = () => {
         try {
             const res = await fetch("/api/admin/routes");
             const routes = await res.json();
+            setRoutesList(routes || []);
+
             if (routes && routes.length > 0) {
                 if (mapInstanceRef.current) {
                     mapInstanceRef.current.eachLayer((layer) => {
@@ -625,7 +653,15 @@ const MapDashboard = () => {
                     <div className="card" style={{ padding: '1.5rem', maxHeight: '250px', display: 'flex', flexDirection: 'column' }}>
                         <h3 style={{ marginTop: 0, marginBottom: '1rem' }}>Assignment Results</h3>
                         <div id="results" style={{ flex: 1, overflowY: 'auto', paddingRight: '10px' }}>
-                            <p style={{ color: 'var(--text-muted)' }}>Upload a CSV file to generate optimized routes.</p>
+                            {processing ? (
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-muted)', gap: '0.5rem' }}>
+                                    <span style={{ animation: 'spin 1s linear infinite' }}>⏳</span> Processing orders...
+                                </div>
+                            ) : assignmentHtml ? (
+                                <div dangerouslySetInnerHTML={{ __html: assignmentHtml }} />
+                            ) : (
+                                <p style={{ color: 'var(--text-muted)' }}>No routes assigned. Upload a CSV file to generate optimized routes.</p>
+                            )}
                         </div>
                     </div>
                 </div>
