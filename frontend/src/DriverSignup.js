@@ -2,10 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const DriverSignup = () => {
-    const [name, setName] = useState("");
-    const [email, setEmail] = useState("");
-    const [phone, setPhone] = useState("");
-    const [password, setPassword] = useState("");
+    const [formData, setFormData] = useState({ name: '', email: '', phone: '', password: '' });
     const navigate = useNavigate();
 
     const handleSignup = async (e) => {
@@ -14,45 +11,89 @@ const DriverSignup = () => {
             const res = await fetch("/api/drivers/signup", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ name, email, phone, password })
+                body: JSON.stringify(formData)
             });
-            const data = await res.json();
             if (res.ok) {
-                alert("Signup successful! Please wait for admin approval before logging in.");
-                navigate("/driver/login");
+                alert("Registration successful! Please wait for admin approval (or login if auto-approved).");
+                navigate('/driver/login');
             } else {
-                alert(data.message);
+                const data = await res.json();
+                alert(data.message || "Signup failed");
             }
         } catch (err) {
+            console.error(err);
             alert("Signup failed");
         }
     };
 
     return (
-        <div style={{ maxWidth: '400px', margin: '50px auto', padding: '20px', border: '1px solid #ddd', borderRadius: '8px' }}>
-            <h2>Driver Registration</h2>
-            <form onSubmit={handleSignup}>
-                <div style={{ marginBottom: '15px' }}>
-                    <label>Name</label>
-                    <input type="text" value={name} onChange={e => setName(e.target.value)} required style={{ width: '100%', padding: '8px', marginTop: '5px' }} />
+        <div className="container flex-center fade-in" style={{ minHeight: 'calc(100vh - 350px)', padding: '3rem 2rem' }}>
+            <div className="card" style={{ width: '100%', maxWidth: '400px', padding: '3rem 2rem' }}>
+                <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+                    <h2 style={{ marginBottom: '0.5rem' }}>Driver Registration</h2>
+                    <p style={{ margin: 0 }}>Join our fleet today</p>
                 </div>
-                <div style={{ marginBottom: '15px' }}>
-                    <label>Email</label>
-                    <input type="email" value={email} onChange={e => setEmail(e.target.value)} required style={{ width: '100%', padding: '8px', marginTop: '5px' }} />
+
+                <form onSubmit={handleSignup}>
+                    <div style={{ marginBottom: '1.25rem' }}>
+                        <label className="input-label">Full Name</label>
+                        <input
+                            type="text"
+                            placeholder="e.g. John Doe"
+                            value={formData.name}
+                            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                            className="input-field"
+                            required
+                        />
+                    </div>
+                    <div style={{ marginBottom: '1.25rem' }}>
+                        <label className="input-label">Email Address</label>
+                        <input
+                            type="email"
+                            placeholder="e.g. john@example.com"
+                            value={formData.email}
+                            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                            className="input-field"
+                            required
+                        />
+                    </div>
+                    <div style={{ marginBottom: '1.25rem' }}>
+                        <label className="input-label">Phone Number</label>
+                        <input
+                            type="tel"
+                            placeholder="+91 98765 43210"
+                            value={formData.phone}
+                            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                            className="input-field"
+                            required
+                        />
+                    </div>
+                    <div style={{ marginBottom: '2rem' }}>
+                        <label className="input-label">Password</label>
+                        <input
+                            type="password"
+                            placeholder="Create a password"
+                            value={formData.password}
+                            onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                            className="input-field"
+                            required
+                        />
+                    </div>
+                    <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
+                        Register Now
+                    </button>
+                </form>
+
+                <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Already registered? </span>
+                    <button
+                        onClick={() => navigate('/driver/login')}
+                        style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: '600', cursor: 'pointer', fontSize: '0.9rem' }}
+                    >
+                        Log In
+                    </button>
                 </div>
-                <div style={{ marginBottom: '15px' }}>
-                    <label>Phone Number</label>
-                    <input type="tel" value={phone} onChange={e => setPhone(e.target.value)} required style={{ width: '100%', padding: '8px', marginTop: '5px' }} />
-                </div>
-                <div style={{ marginBottom: '15px' }}>
-                    <label>Password</label>
-                    <input type="password" value={password} onChange={e => setPassword(e.target.value)} required style={{ width: '100%', padding: '8px', marginTop: '5px' }} />
-                </div>
-                <button type="submit" style={{ width: '100%', padding: '10px', background: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Register</button>
-            </form>
-            <p style={{ marginTop: '15px', textAlign: 'center' }}>
-                Already have an account? <span onClick={() => navigate('/driver/login')} style={{ color: '#007bff', cursor: 'pointer' }}>Login</span>
-            </p>
+            </div>
         </div>
     );
 };

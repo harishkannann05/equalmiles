@@ -116,7 +116,7 @@ const DriverDashboard = () => {
 
                         // Draw ROAD path (Solid Blue)
                         L.polyline(coords, {
-                            color: '#007bff',
+                            color: '#6366f1',
                             weight: 6,
                             opacity: 0.8,
                             lineJoin: 'round'
@@ -139,7 +139,7 @@ const DriverDashboard = () => {
 
             L.circleMarker([s[1], s[0]], {
                 color: 'white',
-                fillColor: 'blue',
+                fillColor: '#10b981',
                 fillOpacity: 1,
                 radius: 8,
                 weight: 2
@@ -185,8 +185,17 @@ const DriverDashboard = () => {
     }, [id, navigate]);
 
     useEffect(() => {
+        // Check authentication
+        const token = localStorage.getItem("token");
+        const role = localStorage.getItem("role");
+
+        if (!token || role !== 'driver') {
+            navigate('/driver/login');
+            return;
+        }
+
         fetchData();
-    }, [fetchData]);
+    }, [fetchData, navigate]);
 
     // Init Map - Run ONCE when route container is likely ready (after loading)
     useEffect(() => {
@@ -230,150 +239,273 @@ const DriverDashboard = () => {
         }
     };
 
-    if (loading) return <div>Loading dashboard...</div>;
+    if (loading) return <div className="container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>Loading dashboard...</div>;
     if (!driver) return null;
 
     // Determining UI State
     let statusMessage = "";
-    let statusColor = "#666";
+    let statusColor = "var(--text-muted)";
 
     if (!driver.isActive) {
         statusMessage = "Your account is inactive. Contact admin.";
-        statusColor = "red";
+        statusColor = "var(--accent)";
     } else if (!driver.onDuty) {
-        statusMessage = "You are off duty today.";
-        statusColor = "#dc3545";
+        statusMessage = "You are currently OFF DUTY.";
+        statusColor = "var(--accent)";
     } else if (driver.onDuty && !route) {
         statusMessage = "Waiting for route assignment...";
-        statusColor = "#17a2b8";
+        statusColor = "var(--primary)";
     } else if (route) {
         statusMessage = route.status === "completed" ? "Route Completed" : "Route Assigned";
-        statusColor = route.status === "completed" ? "#28a745" : "#007bff";
+        statusColor = route.status === "completed" ? "var(--secondary)" : "var(--primary)";
     }
 
     return (
-        <div style={{ padding: '20px', fontFamily: 'Arial', maxWidth: '800px', margin: '0 auto' }}>
-            {/* Header with System Status */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', borderBottom: '1px solid #ccc', paddingBottom: '10px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-                    <h1>{driver.name}'s Dashboard</h1>
-                    <button onClick={handleLogout} style={{ padding: '5px 10px', background: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '0.8em' }}>Logout</button>
-                </div>
-                <div style={{
-                    padding: '5px 10px',
-                    borderRadius: '4px',
-                    background: systemStatus.dutyLocked ? '#e2e3e5' : '#d4edda',
-                    color: systemStatus.dutyLocked ? '#383d41' : '#155724',
-                    fontSize: '0.9em',
-                    fontWeight: 'bold'
-                }}>
-                    {systemStatus.dutyLocked ? "🔒 Duty Locked by Admin" : "🔓 Duty Open"}
-                </div>
-            </div>
-
-            {/* Driver Controls */}
-            <div style={{ background: '#f8f9fa', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                        <strong>Availability: </strong>
-                        <span style={{ color: driver.onDuty ? 'green' : 'red', fontWeight: 'bold' }}>
-                            {driver.onDuty ? "ON DUTY" : "OFF DUTY"}
-                        </span>
-                    </div>
-
-                    <button
-                        onClick={toggleDuty}
-                        disabled={systemStatus.dutyLocked || !driver.isActive}
-                        style={{
-                            padding: '10px 20px',
-                            background: driver.onDuty ? '#dc3545' : '#28a745',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '4px',
-                            cursor: (systemStatus.dutyLocked || !driver.isActive) ? 'not-allowed' : 'pointer',
-                            opacity: (systemStatus.dutyLocked || !driver.isActive) ? 0.6 : 1
-                        }}
-                    >
-                        {driver.onDuty ? "Go Off Duty" : "Go On Duty"}
-                    </button>
-                </div>
-                {systemStatus.dutyLocked && <p style={{ color: '#666', fontSize: '0.85em', marginTop: '10px' }}>Duty status cannot be changed while locked.</p>}
-            </div>
-
-            {/* Main Status Area */}
-            <div style={{ textAlign: 'center', padding: '30px', border: '1px dashed #ccc', borderRadius: '8px', marginBottom: '20px' }}>
-                <h2 style={{ color: statusColor }}>{statusMessage}</h2>
-                {driver.onDuty && (
-                    <button
-                        onClick={fetchData}
-                        style={{ marginTop: '10px', background: 'transparent', border: '1px solid #007bff', color: '#007bff', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer' }}
-                    >
-                        🔄 Refresh Route
-                    </button>
-                )}
-            </div>
-
-            {/* Route Details (if assigned) */}
-            {route && (
-                <div style={{ border: '1px solid #ddd', borderRadius: '8px', overflow: 'hidden' }}>
-                    <div style={{ background: '#007bff', color: 'white', padding: '10px 15px' }}>
-                        <h3>📍 Assigned Route: {route.region}</h3>
-                    </div>
-
-                    {/* DRIVER MAP */}
-                    <div style={{ height: '400px', width: '100%', borderBottom: '1px solid #ddd' }}>
-                        <div ref={mapRef} style={{ width: '100%', height: '100%' }}></div>
-                    </div>
-
-                    <div style={{ padding: '20px' }}>
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
-                            <div><strong>Status:</strong> {route.status.toUpperCase()}</div>
-                            <div><strong>Stops:</strong> {route.numberOfStops}</div>
-                            <div><strong>Total Distance:</strong> {route.totalDistance.toFixed(1)} km</div>
-                            <div><strong>ETA:</strong> {route.eta.toFixed(0)} mins</div>
-                            <div><strong>Difficulty Score:</strong> {route.routeHardshipScore.toFixed(0)}</div>
-                            <div><strong>Turns:</strong> {route.turnCount}</div>
+        <div className="container fade-in" style={{ padding: '1.5rem' }}>
+            {/* Header */}
+            <div style={{ marginBottom: '2rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--primary), var(--secondary))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem', fontWeight: 'bold', color: 'white' }}>
+                            {driver.name.charAt(0).toUpperCase()}
                         </div>
-
-                        <h4 style={{ marginTop: '20px' }}>🛑 Stops:</h4>
-                        <ul style={{ maxHeight: '200px', overflowY: 'auto' }}>
-                            {route.orders.map((order, i) => {
-                                const address = typeof order === 'string' ? order : (order.address || "Unknown Address");
-                                const mode = typeof order === 'object' ? order.mode : "N/A";
-                                const priority = typeof order === 'object' ? order.priority : "Normal";
-
-                                return (
-                                    <li key={i} style={{ marginBottom: '10px', paddingBottom: '10px', borderBottom: '1px solid #eee', listStyle: 'none' }}>
-                                        <div style={{ fontWeight: 'bold', fontSize: '1.05em' }}>
-                                            <span style={{ color: '#007bff', marginRight: '8px' }}>#{i + 1}</span>
-                                            {address}
-                                        </div>
-                                        {typeof order === 'object' && (
-                                            <div style={{ fontSize: '0.85em', color: '#555', marginTop: '4px', marginLeft: '30px', display: 'flex', gap: '15px' }}>
-                                                <span style={{ background: '#f8f9fa', padding: '2px 8px', borderRadius: '4px', border: '1px solid #ddd' }}>
-                                                    📦 Mod: <b>{mode}</b>
-                                                </span>
-                                                <span style={{ background: '#fff3cd', padding: '2px 8px', borderRadius: '4px', border: '1px solid #ffeeba', color: '#856404' }}>
-                                                    🚨 Prio: <b>{priority}</b>
-                                                </span>
-                                                <span>
-                                                    ⚖️ Wgt: {order.weight || 0}kg
-                                                </span>
-                                            </div>
-                                        )}
-                                    </li>
-                                );
-                            })}
-                        </ul>
+                        <div>
+                            <h1 style={{ margin: 0, fontSize: '1.75rem' }}>{driver.name}</h1>
+                            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.95rem' }}>Driver Dashboard</p>
+                        </div>
                     </div>
                 </div>
-            )}
-
-            {/* Stats Footer */}
-            <div style={{ marginTop: '40px', fontSize: '0.9em', color: '#666', textAlign: 'center' }}>
-                <p>Total Routes Completed: {driver.totalRoutesCompleted} | My Hardship Score: {driver.averageHardshipScore.toFixed(1)}</p>
             </div>
 
+            {/* Statistics Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+                <div className="card" style={{ padding: '1.5rem', borderLeft: '4px solid var(--primary)' }}>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>STATUS</div>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: driver.onDuty ? 'var(--secondary)' : 'var(--accent)' }}>
+                        {driver.onDuty ? '🟢 ON DUTY' : '🔴 OFF DUTY'}
+                    </div>
+                </div>
+                <div className="card" style={{ padding: '1.5rem', borderLeft: '4px solid var(--secondary)' }}>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>ROUTES COMPLETED</div>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--text-main)' }}>{driver.totalRoutesCompleted}</div>
+                </div>
+                <div className="card" style={{ padding: '1.5rem', borderLeft: '4px solid var(--accent)' }}>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>HARDSHIP SCORE</div>
+                    <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: 'var(--text-main)' }}>{driver.averageHardshipScore.toFixed(1)}</div>
+                </div>
+                <div className="card" style={{ padding: '1.5rem', borderLeft: '4px solid var(--border)' }}>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>SYSTEM STATUS</div>
+                    <div style={{ fontSize: '1rem', fontWeight: 'bold', color: systemStatus.dutyLocked ? 'var(--accent)' : 'var(--secondary)' }}>
+                        {systemStatus.dutyLocked ? '🔒 Locked' : '✅ Open'}
+                    </div>
+                </div>
+            </div>
+
+            {/* Main Content - Two Column Layout */}
+            <div style={{ display: 'grid', gridTemplateColumns: '350px 1fr', gap: '1.5rem' }}>
+                {/* Left Column - Controls and Info */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {/* Duty Control Card */}
+                    <div className="card" style={{ padding: '1.5rem' }}>
+                        <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.1rem' }}>⚡ Duty Control</h3>
+                        <button
+                            onClick={toggleDuty}
+                            disabled={systemStatus.dutyLocked || !driver.isActive}
+                            className={`btn ${driver.onDuty ? 'btn-outline' : 'btn-primary'}`}
+                            style={{
+                                width: '100%',
+                                padding: '0.75rem',
+                                opacity: (systemStatus.dutyLocked || !driver.isActive) ? 0.6 : 1,
+                                cursor: (systemStatus.dutyLocked || !driver.isActive) ? 'not-allowed' : 'pointer',
+                                borderColor: driver.onDuty ? 'var(--accent)' : '',
+                                color: driver.onDuty ? 'var(--accent)' : ''
+                            }}
+                        >
+                            {driver.onDuty ? '🔴 Go Off Duty' : '🟢 Go On Duty'}
+                        </button>
+                        {systemStatus.dutyLocked && (
+                            <p style={{ margin: '0.75rem 0 0 0', fontSize: '0.85rem', color: 'var(--accent)', textAlign: 'center' }}>
+                                🔒 Duty changes locked by admin
+                            </p>
+                        )}
+                        {!driver.isActive && (
+                            <p style={{ margin: '0.75rem 0 0 0', fontSize: '0.85rem', color: 'var(--accent)', textAlign: 'center' }}>
+                                ⚠️ Account inactive. Contact admin.
+                            </p>
+                        )}
+                    </div>
+
+                    {/* Status Card */}
+                    <div className="card" style={{ padding: '1.5rem', background: 'white', border: `1px solid ${statusColor}` }}>
+                        <h3 style={{ margin: '0 0 0.5rem 0', fontSize: '0.9rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Current Status</h3>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <p style={{ margin: 0, fontSize: '1.1rem', fontWeight: '700', color: 'var(--text-main)' }}>{statusMessage}</p>
+                        </div>
+                        {driver.onDuty && (
+                            <button
+                                onClick={fetchData}
+                                className="btn"
+                                style={{
+                                    marginTop: '1rem',
+                                    width: '100%',
+                                    fontSize: '0.9rem',
+                                    background: 'white',
+                                    border: `1px solid ${statusColor}`,
+                                    color: 'var(--text-main)'
+                                }}
+                            >
+                                🔄 Refresh Route
+                            </button>
+                        )}
+                    </div>
+
+                    {/* Route Stats (if route assigned) */}
+                    {route && (
+                        <div className="card" style={{ padding: '1.5rem' }}>
+                            <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.1rem', color: 'var(--primary)' }}>📊 Route Stats</h3>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', background: 'rgba(0,0,0,0.1)', borderRadius: 'var(--radius-md)' }}>
+                                    <span style={{ color: 'var(--text-muted)' }}>Region</span>
+                                    <span style={{ fontWeight: '600' }}>{route.region}</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', background: 'rgba(0,0,0,0.1)', borderRadius: 'var(--radius-md)' }}>
+                                    <span style={{ color: 'var(--text-muted)' }}>Stops</span>
+                                    <span style={{ fontWeight: '600' }}>{route.numberOfStops}</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', background: 'rgba(0,0,0,0.1)', borderRadius: 'var(--radius-md)' }}>
+                                    <span style={{ color: 'var(--text-muted)' }}>Distance</span>
+                                    <span style={{ fontWeight: '600' }}>{route.totalDistance.toFixed(1)} km</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', background: 'rgba(0,0,0,0.1)', borderRadius: 'var(--radius-md)' }}>
+                                    <span style={{ color: 'var(--text-muted)' }}>ETA</span>
+                                    <span style={{ fontWeight: '600' }}>{route.eta.toFixed(0)} mins</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.5rem', background: 'rgba(0,0,0,0.1)', borderRadius: 'var(--radius-md)' }}>
+                                    <span style={{ color: 'var(--text-muted)' }}>Difficulty</span>
+                                    <span style={{ fontWeight: '600' }}>{route.routeHardshipScore.toFixed(0)}</span>
+                                </div>
+                                <div style={{ marginTop: '0.5rem', padding: '0.75rem', background: route.status === 'completed' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 155, 81, 0.2)', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
+                                    <span style={{ fontWeight: '600', color: route.status === 'completed' ? 'var(--secondary)' : 'var(--primary)' }}>
+                                        {route.status === 'completed' ? '✅ COMPLETED' : '🚚 IN PROGRESS'}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+
+                {/* Right Column - Map and Delivery List */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {route ? (
+                        <>
+                            {/* Map Container */}
+                            <div className="card" style={{ padding: 0, overflow: 'hidden', height: '500px' }}>
+                                <div ref={mapRef} style={{ width: '100%', height: '100%', minHeight: '500px' }}></div>
+                            </div>
+
+                            {/* Delivery Stops List */}
+                            <div className="card" style={{ padding: '1.5rem', maxHeight: '400px', display: 'flex', flexDirection: 'column' }}>
+                                <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.1rem' }}>🛑 Delivery Stops ({route.numberOfStops})</h3>
+                                <div style={{ flex: 1, overflowY: 'auto', paddingRight: '0.5rem' }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                        {route.orders.map((order, i) => {
+                                            const address = typeof order === 'string' ? order : (order.address || "Unknown Address");
+                                            const mode = typeof order === 'object' ? order.mode : "N/A";
+                                            const priority = typeof order === 'object' ? order.priority : "Normal";
+                                            const weight = typeof order === 'object' ? order.weight : 0;
+
+                                            return (
+                                                <div
+                                                    key={i}
+                                                    style={{
+                                                        display: 'flex',
+                                                        alignItems: 'flex-start',
+                                                        gap: '1rem',
+                                                        padding: '1rem',
+                                                        background: 'rgba(255,255,255,0.03)',
+                                                        borderRadius: 'var(--radius-md)',
+                                                        border: '1px solid var(--border)',
+                                                        transition: 'var(--transition)'
+                                                    }}
+                                                    onMouseEnter={(e) => {
+                                                        e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
+                                                        e.currentTarget.style.borderColor = 'var(--primary)';
+                                                    }}
+                                                    onMouseLeave={(e) => {
+                                                        e.currentTarget.style.background = 'rgba(255,255,255,0.03)';
+                                                        e.currentTarget.style.borderColor = 'var(--border)';
+                                                    }}
+                                                >
+                                                    <div style={{
+                                                        width: '36px',
+                                                        height: '36px',
+                                                        background: 'var(--primary)',
+                                                        color: 'white',
+                                                        borderRadius: '50%',
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        fontWeight: 'bold',
+                                                        fontSize: '0.95rem',
+                                                        flexShrink: 0
+                                                    }}>
+                                                        {i + 1}
+                                                    </div>
+                                                    <div style={{ flex: 1 }}>
+                                                        <div style={{ fontWeight: '600', fontSize: '1rem', marginBottom: '0.5rem', color: 'var(--text-main)' }}>
+                                                            {address}
+                                                        </div>
+                                                        {typeof order === 'object' && (
+                                                            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                                                <span style={{
+                                                                    fontSize: '0.75rem',
+                                                                    padding: '0.25rem 0.5rem',
+                                                                    borderRadius: '4px',
+                                                                    background: 'rgba(255,255,255,0.1)',
+                                                                    border: '1px solid rgba(255,255,255,0.2)'
+                                                                }}>
+                                                                    📦 {mode}
+                                                                </span>
+                                                                <span style={{
+                                                                    fontSize: '0.75rem',
+                                                                    padding: '0.25rem 0.5rem',
+                                                                    borderRadius: '4px',
+                                                                    background: priority === 'High' ? 'rgba(244, 63, 94, 0.2)' : 'rgba(16, 185, 129, 0.2)',
+                                                                    color: priority === 'High' ? 'var(--accent)' : 'var(--secondary)',
+                                                                    border: '1px solid currentcolor',
+                                                                    fontWeight: '600'
+                                                                }}>
+                                                                    {priority === 'High' ? '🚨' : '🟢'} {priority}
+                                                                </span>
+                                                                <span style={{
+                                                                    fontSize: '0.75rem',
+                                                                    padding: '0.25rem 0.5rem',
+                                                                    borderRadius: '4px',
+                                                                    background: 'rgba(255,255,255,0.1)'
+                                                                }}>
+                                                                    ⚖️ {weight}kg
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="card" style={{ padding: '4rem 2rem', textAlign: 'center', minHeight: '500px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                            <div style={{ fontSize: '4rem', marginBottom: '1rem', opacity: 0.3 }}>🗺️</div>
+                            <h3 style={{ margin: '0 0 0.5rem 0', color: 'var(--text-muted)' }}>No Active Route</h3>
+                            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.95rem' }}>
+                                {driver.onDuty ? 'Waiting for route assignment from admin...' : 'Go on duty to receive route assignments'}
+                            </p>
+                        </div>
+                    )}
+                </div>
+            </div>
         </div>
     );
 };

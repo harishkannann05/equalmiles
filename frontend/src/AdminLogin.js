@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const AdminLogin = () => {
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
+    const [email, setEmail] = useState('');
+    const [password, setPassword] = useState('');
     const navigate = useNavigate();
 
     const handleLogin = async (e) => {
@@ -18,32 +18,61 @@ const AdminLogin = () => {
             if (res.ok) {
                 localStorage.setItem("token", data.token);
                 localStorage.setItem("role", "admin");
-                navigate("/admin");
+                navigate('/admin');
             } else {
                 alert(data.message);
             }
         } catch (err) {
+            console.error(err);
             alert("Login failed");
         }
     };
 
     return (
-        <div style={{ maxWidth: '400px', margin: '50px auto', padding: '20px', border: '1px solid #ddd', borderRadius: '8px' }}>
-            <h2>Admin Login</h2>
-            <form onSubmit={handleLogin}>
-                <div style={{ marginBottom: '15px' }}>
-                    <label>Email</label>
-                    <input type="email" value={email} onChange={e => setEmail(e.target.value)} required style={{ width: '100%', padding: '8px', marginTop: '5px' }} />
+        <div className="container flex-center fade-in" style={{ minHeight: 'calc(100vh - 350px)', padding: '3rem 2rem' }}>
+            <div className="card" style={{ width: '100%', maxWidth: '400px', padding: '3rem 2rem' }}>
+                <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+                    <h2 style={{ marginBottom: '0.5rem' }}>Admin Portal</h2>
+                    <p style={{ margin: 0 }}>Secure login for administrators</p>
                 </div>
-                <div style={{ marginBottom: '15px' }}>
-                    <label>Password</label>
-                    <input type="password" value={password} onChange={e => setPassword(e.target.value)} required style={{ width: '100%', padding: '8px', marginTop: '5px' }} />
+
+                <form onSubmit={handleLogin}>
+                    <div style={{ marginBottom: '1.5rem' }}>
+                        <label className="input-label">Email Address</label>
+                        <input
+                            type="email"
+                            placeholder="admin@example.com"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            className="input-field"
+                            required
+                        />
+                    </div>
+                    <div style={{ marginBottom: '2rem' }}>
+                        <label className="input-label">Password</label>
+                        <input
+                            type="password"
+                            placeholder="Enter password"
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            className="input-field"
+                            required
+                        />
+                    </div>
+                    <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
+                        Dashboard Login
+                    </button>
+                </form>
+
+                <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
+                    <button
+                        onClick={() => navigate('/')}
+                        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.9rem', textDecoration: 'underline' }}
+                    >
+                        &larr; Back to Home
+                    </button>
                 </div>
-                <button type="submit" style={{ width: '100%', padding: '10px', background: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Login</button>
-            </form>
-            <p style={{ marginTop: '15px', textAlign: 'center' }}>
-                Don't have an account? <span onClick={() => navigate('/admin/signup')} style={{ color: '#007bff', cursor: 'pointer' }}>Sign up</span>
-            </p>
+            </div>
         </div>
     );
 };

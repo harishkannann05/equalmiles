@@ -2,8 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 const DriverLogin = () => {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const navigate = useNavigate();
 
   const handleLogin = async (e) => {
@@ -18,32 +18,68 @@ const DriverLogin = () => {
       if (res.ok) {
         localStorage.setItem("token", data.token);
         localStorage.setItem("role", "driver");
-        navigate(`/driver/${data.driverId}`);
+        // Handle both 'id' and 'driverId' from backend
+        const driverId = data.id || data.driverId;
+        if (driverId) {
+          navigate(`/driver/${driverId}`);
+        } else {
+          alert("Login successful but driver ID not found");
+        }
       } else {
-        alert(data.message);
+        alert(data.message || "Login failed");
       }
     } catch (err) {
-      alert("Login failed");
+      console.error(err);
+      alert("Login failed. Please check your connection.");
     }
   };
 
   return (
-    <div style={{ maxWidth: '400px', margin: '50px auto', padding: '20px', border: '1px solid #ddd', borderRadius: '8px' }}>
-      <h2>Driver Login</h2>
-      <form onSubmit={handleLogin}>
-        <div style={{ marginBottom: '15px' }}>
-          <label>Email</label>
-          <input type="email" value={email} onChange={e => setEmail(e.target.value)} required style={{ width: '100%', padding: '8px', marginTop: '5px' }} />
+    <div className="container flex-center fade-in" style={{ minHeight: 'calc(100vh - 350px)', padding: '3rem 2rem' }}>
+      <div className="card" style={{ width: '100%', maxWidth: '400px', padding: '3rem 2rem' }}>
+        <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
+          <h2 style={{ marginBottom: '0.5rem' }}>Driver Login</h2>
+          <p style={{ margin: 0 }}>Access your route dashboard</p>
         </div>
-        <div style={{ marginBottom: '15px' }}>
-          <label>Password</label>
-          <input type="password" value={password} onChange={e => setPassword(e.target.value)} required style={{ width: '100%', padding: '8px', marginTop: '5px' }} />
+
+        <form onSubmit={handleLogin}>
+          <div style={{ marginBottom: '1.5rem' }}>
+            <label className="input-label">Email Address</label>
+            <input
+              type="email"
+              placeholder="Enter your email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="input-field"
+              required
+            />
+          </div>
+          <div style={{ marginBottom: '2rem' }}>
+            <label className="input-label">Password</label>
+            <input
+              type="password"
+              placeholder="Enter your password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="input-field"
+              required
+            />
+          </div>
+          <button type="submit" className="btn btn-primary" style={{ width: '100%' }}>
+            Log In
+          </button>
+        </form>
+
+        <div style={{ marginTop: '1.5rem', textAlign: 'center' }}>
+          <span style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Don't have an account? </span>
+          <button
+            onClick={() => navigate('/driver/signup')}
+            style={{ background: 'none', border: 'none', color: 'var(--primary)', fontWeight: '600', cursor: 'pointer', fontSize: '0.9rem' }}
+          >
+            Register here
+          </button>
         </div>
-        <button type="submit" style={{ width: '100%', padding: '10px', background: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Login</button>
-      </form>
-      <p style={{ marginTop: '15px', textAlign: 'center' }}>
-        New Driver? <span onClick={() => navigate('/driver/signup')} style={{ color: '#007bff', cursor: 'pointer' }}>Register Here</span>
-      </p>
+      </div>
     </div>
   );
 };

@@ -19,6 +19,7 @@ const MapDashboard = () => {
     // Pending Drivers State
     // Pending & Active Drivers State
     // Driver States
+    const [drivers, setDrivers] = useState([]);
     const [pendingDrivers, setPendingDrivers] = useState([]);
     const [onDutyDrivers, setOnDutyDrivers] = useState([]);
     const [offDutyDrivers, setOffDutyDrivers] = useState([]);
@@ -44,6 +45,7 @@ const MapDashboard = () => {
         try {
             const res = await fetch("/api/admin/approved-drivers");
             const data = await res.json();
+            setDrivers(data); // Store all approved drivers
             setOnDutyDrivers(data.filter(d => d.onDuty));
             setOffDutyDrivers(data.filter(d => !d.onDuty));
         } catch (err) {
@@ -87,8 +89,6 @@ const MapDashboard = () => {
             const data = await res.json();
             setDutyLocked(data.dutyLocked);
             alert(`Duty is now ${data.dutyLocked ? "LOCKED 🔒" : "UNLOCKED 🔓"}`);
-            setDutyLocked(data.dutyLocked);
-            alert(`Duty is now ${data.dutyLocked ? "LOCKED 🔒" : "UNLOCKED 🔓"}`);
         } catch (err) {
             console.error(err);
         }
@@ -118,23 +118,15 @@ const MapDashboard = () => {
     const getCoordinates = (order) => {
         // 1. Try DB Coordinates
         if (order.coordinates && order.coordinates.lat && order.coordinates.lng) {
-            return [order.coordinates.lng, order.coordinates.lat]; // Leaflet uses [lat, lng] usually, but let's check format
-            // Wait, previous code used [77.71, 11.32] which is [lng, lat] for some reason in drawing?
-            // Let's re-verify: L.marker([lat, lng]) BUT my code uses [s[1], s[0]] in drawing marker.
-            // My getCoordinates returns [lng, lat].
-            // So I should return [lng, lat] here too.
-            // return [order.coordinates.lng, order.coordinates.lat];
+            return [order.coordinates.lng, order.coordinates.lat];
         }
 
         // 2. Fallback to Address
         const rawAddress = order.address;
         if (!rawAddress) {
-            // console.warn("getCoordinates: Empty address");
             return null;
         }
         const address = rawAddress.toLowerCase();
-
-        // console.log("Geocoding:", address); 
 
         if (address.includes("surampatti")) return [77.7144, 11.3344];
         if (address.includes("erode")) return [77.710, 11.327];
@@ -158,7 +150,6 @@ const MapDashboard = () => {
             let nearestIndex = -1;
             let minDist = Infinity;
 
-            // Use standard for loop to avoid ESLint no-loop-func error
             for (let index = 0; index < rawStops.length; index++) {
                 const stop = rawStops[index];
                 const d = Math.sqrt(Math.pow(stop[0] - currentPos[0], 2) + Math.pow(stop[1] - currentPos[1], 2));
@@ -208,9 +199,6 @@ const MapDashboard = () => {
         sortedStops.forEach((s, i) => {
             const isLast = i === sortedStops.length - 1;
 
-            // User Request: Only show Start (Office) and Last Stop (Final Destination)
-            // Intermediate stops are hidden to keep the map clean.
-
             if (mapInstanceRef.current && isLast) {
                 // Final Destination Marker Only
                 L.circleMarker([s[1], s[0]], {
@@ -230,11 +218,10 @@ const MapDashboard = () => {
 
         // Extended Palette
         const colors = [
-            "#007bff", "#dc3545", "#28a745", "#6f42c1", "#fd7e14", "#d63384", "#17a2b8", "#6610f2", "#20c997", "#343a40"
+            "#6366f1", "#ef4444", "#10b981", "#8b5cf6", "#f97316", "#ec4899", "#06b6d4", "#7c3aed", "#14b8a6", "#64748b"
         ];
 
         // Process sequentially to avoid OSRM Rate Limiting (429)
-        // Free server blocks if we send 50+ requests at once.
         for (let i = 0; i < routes.length; i++) {
             const route = routes[i];
             if (!route.orders || route.orders.length === 0) continue;
@@ -243,15 +230,12 @@ const MapDashboard = () => {
             if (stops.length === 0) continue;
 
             const driverMock = {
-                name: `Route ${route.region}`, // (Driver info might need fetching if not in route object)
+                name: `Route ${route.region}`,
                 color: colors[i % colors.length],
                 stops: stops
             };
 
-            // Draw this driver's route
             await drawMultiStopRoute(driverMock);
-
-            // Small pause between drivers to be polite to the server
             await new Promise(r => setTimeout(r, 500));
         }
     }, [drawMultiStopRoute]);
@@ -266,7 +250,7 @@ const MapDashboard = () => {
 
         try {
             const resultsDiv = document.getElementById("results");
-            if (resultsDiv) resultsDiv.innerHTML = "<p>Processing orders and assigning routes...</p>";
+            if (resultsDiv) resultsDiv.innerHTML = "<p style='color: var(--text-muted)'>Processing orders and assigning routes...</p>";
 
             const res = await fetch("/api/admin/upload-csv", {
                 method: "POST",
@@ -279,8 +263,8 @@ const MapDashboard = () => {
                 fetchData(); // Refresh everything
 
                 if (resultsDiv) {
-                    let html = "<h3>✅ Assignment Complete</h3>";
-                    html += "<div style='font-size: 0.9em;'>";
+                    let html = "<h3 style='margin-top:0; color: var(--color-primary); font-size: 1.2rem; display: flex; alignItems: center; gap: 0.5rem;'>✅ Assignment Complete</h3>";
+                    html += "<div style='display: flex; flex-direction: column; gap: 10px;'>";
 
                     // Sort routes by score (Hardest first)
                     const sortedRoutes = data.routes.sort((a, b) => b.routeHardshipScore - a.routeHardshipScore);
@@ -289,29 +273,53 @@ const MapDashboard = () => {
                         // Find driver name from state
                         const driver = onDutyDrivers.find(d => d._id === route.assignedDriverId);
                         const driverName = driver ? driver.name : "Unknown Driver";
-                        const color = ["blue", "green", "red", "orange", "purple", "brown"][i % 6];
+                        // Palette match
+                        const colors = ["#E2A16F", "#86B0BD", "#D18F5A", "#6A9AA8", "#7BA888", "#D17A6F"];
+                        const color = colors[i % colors.length];
 
                         html += `
-                                <div style="border-left: 5px solid ${color}; background: white; padding: 10px; margin-bottom: 10px; border-radius: 4px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
-                                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                                        <h4 style="margin: 0;">${driverName}</h4>
-                                        <span style="background: #eee; padding: 2px 6px; border-radius: 4px; font-weight: bold;">Score: ${route.routeHardshipScore?.toFixed(1)}</span>
+                                <div style="border-left: 4px solid ${color}; background: var(--bg-input); padding: 12px; border-radius: 8px; border: 1px solid var(--border-light); box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                                        <h4 style="margin: 0; color: var(--text-main); font-size: 1rem;">${driverName}</h4>
+                                        <span style="background: ${color}20; color: ${color}; padding: 3px 8px; border-radius: 12px; font-weight: 600; font-size: 0.75rem; border: 1px solid ${color}40;">Score: ${route.routeHardshipScore?.toFixed(1)}</span>
                                     </div>
-                                    <p style="margin: 5px 0; font-size: 0.85em; color: #666;">
-                                        ${route.orders.length} Stops • ${route.totalDistance} km
+                                    <p style="margin: 0 0 8px 0; font-size: 0.85rem; color: var(--text-secondary); display: flex; align-items: center; gap: 5px;">
+                                        📦 ${route.orders.length} Stops <span style="color: var(--border);">•</span> 🛣️ ${route.totalDistance} km
                                     </p>
                                     <details style="margin-top: 5px;">
-                                        <summary style="cursor: pointer; color: #007bff; font-weight: bold; font-size: 0.85em;">View Stops</summary>
-                                        <ul style="padding-left: 20px; margin: 5px 0; font-size: 0.85em; color: #333;">
+                                        <summary style="cursor: pointer; color: var(--color-primary); font-weight: 600; font-size: 0.85rem; user-select: none; padding: 4px 0;">View Stops</summary>
+                                        <ul style="padding-left: 0; margin: 10px 0 0 0; list-style: none; display: flex; flex-direction: column; gap: 8px;">
                                             ${route.orders.map((o, idx) => {
                             const addr = o.address ? o.address.split(',')[0] : "Unknown Address";
                             return `
-                                                <li style="margin-bottom: 4px;">
-                                                    <b>#${idx + 1}:</b> ${addr} 
-                                                    <br/>
-                                                    <span style="font-size: 0.8em; color: #555;">
-                                                        Mode: <b>${o.mode || 'N/A'}</b> | Priority: <b>${o.priority || 'Normal'}</b>
-                                                    </span>
+                                                <li style="border: 1px solid var(--border-light); border-radius: 8px; padding: 12px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+                                                    <div style="display: flex; gap: 12px; align-items: start;">
+                                                        <div style="
+                                                            background: #E2A16F; color: white; width: 24px; height: 24px; 
+                                                            border-radius: 50%; display: flex; align-items: center; justify-content: center; 
+                                                            font-size: 0.85rem; font-weight: bold; flex-shrink: 0; margin-top: 2px;">
+                                                            ${idx + 1}
+                                                        </div>
+                                                        <div style="flex: 1;">
+                                                            <div style="font-weight: 600; color: var(--text-main); font-size: 0.95rem; margin-bottom: 6px;">
+                                                                ${addr}
+                                                            </div>
+                                                            <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                                                                <span style="display: flex; align-items: center; gap: 4px; font-size: 0.75rem; color: var(--text-secondary); background: var(--bg-input); padding: 2px 8px; border-radius: 4px;">
+                                                                    📦 ${o.mode || 'not specified'}
+                                                                </span>
+                                                                <span style="display: flex; align-items: center; gap: 4px; font-size: 0.75rem; 
+                                                                    background: ${o.priority === 'High' ? '#D17A6F20' : '#7BA88820'}; 
+                                                                    color: ${o.priority === 'High' ? '#D17A6F' : '#7BA888'}; 
+                                                                    padding: 2px 8px; border-radius: 4px; border: 1px solid ${o.priority === 'High' ? '#D17A6F40' : '#7BA88840'};">
+                                                                    ${o.priority === 'High' ? '🔴 High' : '🟢 Normal'}
+                                                                </span>
+                                                                <span style="display: flex; align-items: center; gap: 4px; font-size: 0.75rem; color: var(--text-secondary); background: var(--bg-input); padding: 2px 8px; border-radius: 4px;">
+                                                                    ⚖️ ${o.weight ? o.weight + 'kg' : 'N/A'}
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 </li>
                                                 `;
                         }).join('')}
@@ -326,14 +334,12 @@ const MapDashboard = () => {
 
                 // Visualize on Map immediately
                 if (mapInstanceRef.current) {
-                    // Clear existing layers safely if needed (optional for now, as Leaflet just adds on top)
-                    // A simpler way is to just call our visualizer
                     visualizeRoutes(data.routes);
                 }
             } else {
                 const err = await res.json();
                 alert("Error: " + (err.message || "Failed to process CSV"));
-                if (resultsDiv) resultsDiv.innerHTML = `<p style="color:red">Error: ${err.message}</p>`;
+                if (resultsDiv) resultsDiv.innerHTML = `<p style="color: #ef4444">Error: ${err.message}</p>`;
             }
         } catch (err) {
             console.error("Upload error:", err);
@@ -414,199 +420,270 @@ const MapDashboard = () => {
         return () => { };
     }, [navigate, fetchData]);
 
+
     return (
-        <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                <h1>EqualMiles Admin Dashboard</h1>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                    <button
-                        onClick={fetchData}
-                        style={{
-                            padding: '8px 16px',
-                            backgroundColor: '#17a2b8',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '4px',
-                            cursor: 'pointer',
-                            display: 'flex', alignItems: 'center', gap: '5px'
-                        }}
-                    >
-                        🔄 Refresh Map
-                    </button>
-                    <button
-                        onClick={toggleDutyLock}
-                        style={{
-                            padding: '8px 16px',
-                            background: dutyLocked ? '#dc3545' : '#28a745',
-                            color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold'
-                        }}
-                    >
-                        {dutyLocked ? "Unlock Duty 🔓" : "Lock Duty 🔒"}
-                    </button>
-                    <button onClick={handleLogout} style={{ padding: '8px 16px', background: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Logout</button>
+        <div className="container fade-in" style={{ padding: '1.5rem' }}>
+            {/* Header with Stats */}
+            <div style={{ marginBottom: '2rem' }}>
+                <h1 style={{ margin: 0, marginBottom: '0.5rem' }}>Admin Dashboard</h1>
+                <p style={{ margin: 0, color: 'var(--text-muted)' }}>Fleet Management & Route Optimization</p>
+            </div>
+
+            {/* Statistics Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
+                <div className="card" style={{ padding: '1.5rem', borderLeft: '4px solid var(--primary)' }}>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>TOTAL DRIVERS</div>
+                    <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--text-main)' }}>{drivers.length}</div>
+                </div>
+                <div className="card" style={{ padding: '1.5rem', borderLeft: '4px solid var(--secondary)' }}>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>ON DUTY</div>
+                    <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--secondary)' }}>{onDutyDrivers.length}</div>
+                </div>
+                <div className="card" style={{ padding: '1.5rem', borderLeft: '4px solid var(--accent)' }}>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>PENDING</div>
+                    <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--accent)' }}>{pendingDrivers.length}</div>
+                </div>
+                <div className="card" style={{ padding: '1.5rem', borderLeft: '4px solid var(--text-muted)' }}>
+                    <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.5rem' }}>OFF DUTY</div>
+                    <div style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--text-muted)' }}>{offDutyDrivers.length}</div>
                 </div>
             </div>
 
-            {/* Pending Approvals Section */}
-            <div style={{ padding: '15px', background: '#fff3cd', borderRadius: '8px', marginBottom: '20px', border: '1px solid #ffeeba' }}>
-                <h3>⏳ Pending Driver Approvals</h3>
-                {pendingDrivers.length === 0 ? <p>No pending approvals.</p> : (
-                    <ul style={{ listStyle: 'none', padding: 0 }}>
-                        {pendingDrivers.map(d => (
-                            <li key={d._id} onClick={() => handleDriverClick(d)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '10px', background: 'white', marginBottom: '5px', borderRadius: '4px', cursor: 'pointer', border: '1px solid #ccc' }}>
-                                <span>{d.name} ({d.email})</span>
-                                <span style={{ fontSize: '0.8em', color: '#856404' }}>View Details</span>
-                            </li>
-                        ))}
-                    </ul>
-                )}
-            </div>
+            {/* Main Content Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1.5rem' }}>
+                {/* Left Column - Controls and Driver Lists */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {/* CSV Upload Section */}
+                    <div className="card" style={{ padding: '1.5rem' }}>
+                        <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.1rem' }}>📦 Route Assignment</h3>
+                        <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                            <input
+                                type="file"
+                                id="csvFile"
+                                accept=".csv"
+                                style={{
+                                    flex: 1,
+                                    minWidth: '250px',
+                                    color: 'var(--text-main)',
+                                    background: 'var(--bg-input)',
+                                    padding: '0.75rem',
+                                    borderRadius: 'var(--radius-md)',
+                                    border: '1px solid var(--border)'
+                                }}
+                            />
+                            <button onClick={processCSV} className="btn btn-primary">
+                                Process Orders
+                            </button>
+                            <button
+                                onClick={async () => {
+                                    if (window.confirm("Reset all routes? This will delete current assignments.")) {
+                                        try {
+                                            const res = await fetch("/api/admin/reset-routes", { method: "DELETE" });
+                                            const data = await res.json();
+                                            alert(data.message);
+                                            window.location.reload();
+                                        } catch (err) {
+                                            alert("Failed to reset routes");
+                                        }
+                                    }
+                                }}
+                                className="btn btn-outline"
+                                style={{ color: 'var(--accent)', borderColor: 'var(--accent)' }}
+                            >
+                                Reset All
+                            </button>
+                        </div>
+                    </div>
 
-            {/* Active (On Duty) Drivers Section */}
-            <div style={{ padding: '15px', background: '#d4edda', borderRadius: '8px', marginBottom: '20px', border: '1px solid #c3e6cb' }}>
-                <h3>🟢 On-Duty Drivers</h3>
-                {onDutyDrivers.length === 0 ? <p>No drivers currently on duty.</p> : (
-                    <ul style={{ listStyle: 'none', padding: 0 }}>
-                        {onDutyDrivers.map(d => (
-                            <li key={d._id} onClick={() => handleDriverClick(d)} style={{ padding: '10px', background: 'white', marginBottom: '5px', borderRadius: '4px', cursor: 'pointer', border: '1px solid #ccc' }}>
-                                <b>{d.name}</b> ({d.email})
-                                <span style={{ float: 'right', fontSize: '0.8em', color: '#28a745' }}>View Details</span>
-                            </li>
-                        ))}
-                    </ul>
-                )}
-            </div>
+                    {/* Map Controls */}
+                    <div className="card" style={{ display: 'flex', gap: '1rem', alignItems: 'center', background: 'white', padding: '1rem' }}>
+                        <button onClick={fetchData} className="btn btn-outline" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            🔄 Refresh Map
+                        </button>
+                        <button
+                            onClick={toggleDutyLock}
+                            className={`btn ${dutyLocked ? 'btn-secondary' : 'btn-outline'}`}
+                            style={dutyLocked ? { background: 'var(--accent)', borderColor: 'var(--accent)' } : {}}
+                        >
+                            {dutyLocked ? "Unlock Duty 🔓" : "Lock Duty 🔒"}
+                        </button>
+                    </div>
 
-            {/* Off Duty Drivers Section */}
-            <div style={{ padding: '15px', background: '#e2e3e5', borderRadius: '8px', marginBottom: '20px', border: '1px solid #d6d8db' }}>
-                <h3>🔴 Off-Duty Drivers</h3>
-                {offDutyDrivers.length === 0 ? <p>No off-duty drivers.</p> : (
-                    <ul style={{ listStyle: 'none', padding: 0 }}>
-                        {offDutyDrivers.map(d => (
-                            <li key={d._id} onClick={() => handleDriverClick(d)} style={{ padding: '10px', background: 'white', marginBottom: '5px', borderRadius: '4px', color: '#666', cursor: 'pointer', border: '1px solid #ccc' }}>
-                                <b>{d.name}</b> ({d.email})
-                                <span style={{ float: 'right', fontSize: '0.8em' }}>View Details</span>
-                            </li>
-                        ))}
-                    </ul>
-                )}
+                    {/* Pending Approvals */}
+                    {pendingDrivers.length > 0 && (
+                        <div className="card" style={{ padding: '1rem' }}>
+                            <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem', color: 'var(--accent)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                ⏳ Pending Approvals
+                                <span style={{ marginLeft: 'auto', background: 'var(--accent)', color: 'white', padding: '0.2rem 0.5rem', borderRadius: '12px', fontSize: '0.75rem' }}>
+                                    {pendingDrivers.length}
+                                </span>
+                            </h3>
+                            <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+                                {pendingDrivers.map(d => (
+                                    <div
+                                        key={d._id}
+                                        onClick={() => handleDriverClick(d)}
+                                        style={{
+                                            padding: '0.75rem',
+                                            background: 'rgba(255, 155, 81, 0.1)',
+                                            marginBottom: '0.5rem',
+                                            borderRadius: 'var(--radius-md)',
+                                            cursor: 'pointer',
+                                            border: '1px solid rgba(255, 155, 81, 0.2)',
+                                            transition: 'var(--transition)'
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255, 155, 81, 0.2)'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(255, 155, 81, 0.1)'}
+                                    >
+                                        <div style={{ fontWeight: '600', marginBottom: '0.25rem' }}>{d.name}</div>
+                                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{d.email}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* On-Duty Drivers */}
+                    <div className="card" style={{ padding: '1rem' }}>
+                        <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem', color: 'var(--secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            🟢 Active Drivers
+                            <span style={{ marginLeft: 'auto', background: 'var(--secondary)', color: 'white', padding: '0.2rem 0.5rem', borderRadius: '12px', fontSize: '0.75rem' }}>
+                                {onDutyDrivers.length}
+                            </span>
+                        </h3>
+                        <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                            {onDutyDrivers.length === 0 ? (
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>No active drivers</p>
+                            ) : (
+                                onDutyDrivers.map(d => (
+                                    <div
+                                        key={d._id}
+                                        onClick={() => handleDriverClick(d)}
+                                        style={{
+                                            padding: '0.75rem',
+                                            background: 'rgba(16, 185, 129, 0.05)',
+                                            marginBottom: '0.5rem',
+                                            borderRadius: 'var(--radius-md)',
+                                            cursor: 'pointer',
+                                            border: '1px solid rgba(16, 185, 129, 0.1)',
+                                            transition: 'var(--transition)'
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(16, 185, 129, 0.1)'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(16, 185, 129, 0.05)'}
+                                    >
+                                        <div style={{ fontWeight: '600', fontSize: '0.9rem' }}>{d.name}</div>
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+
+                    {/* Off-Duty Drivers - Collapsible */}
+                    <div className="card" style={{ padding: '1rem' }}>
+                        <h3 style={{ margin: '0 0 1rem 0', fontSize: '1rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                            🔴 Off-Duty
+                            <span style={{ marginLeft: 'auto', background: 'var(--border)', color: 'var(--text-main)', padding: '0.2rem 0.5rem', borderRadius: '12px', fontSize: '0.75rem' }}>
+                                {offDutyDrivers.length}
+                            </span>
+                        </h3>
+                        <div style={{ maxHeight: '150px', overflowY: 'auto' }}>
+                            {offDutyDrivers.length === 0 ? (
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: 0 }}>All drivers active</p>
+                            ) : (
+                                offDutyDrivers.map(d => (
+                                    <div
+                                        key={d._id}
+                                        onClick={() => handleDriverClick(d)}
+                                        style={{
+                                            padding: '0.5rem',
+                                            marginBottom: '0.5rem',
+                                            borderRadius: 'var(--radius-md)',
+                                            cursor: 'pointer',
+                                            fontSize: '0.85rem',
+                                            color: 'var(--text-muted)',
+                                            transition: 'var(--transition)'
+                                        }}
+                                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(0,0,0,0.05)'}
+                                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                                    >
+                                        {d.name}
+                                    </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* Right Column - Map and Results */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {/* Map Container - LARGER */}
+                    <div className="card" style={{ padding: 0, overflow: 'hidden', height: '600px' }}>
+                        <div id="map" ref={mapRef} style={{ height: '100%', width: '100%', minHeight: '600px' }}></div>
+                    </div>
+
+                    {/* Results Section */}
+                    <div className="card" style={{ padding: '1.5rem', maxHeight: '250px', display: 'flex', flexDirection: 'column' }}>
+                        <h3 style={{ marginTop: 0, marginBottom: '1rem' }}>Assignment Results</h3>
+                        <div id="results" style={{ flex: 1, overflowY: 'auto', paddingRight: '10px' }}>
+                            <p style={{ color: 'var(--text-muted)' }}>Upload a CSV file to generate optimized routes.</p>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {/* DRIVER DETAILS MODAL */}
             {selectedDriver && (
                 <div style={{
                     position: 'fixed', top: 0, left: 0, width: '100%', height: '100%',
-                    background: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000
-                }}>
-                    <div style={{ background: 'white', padding: '20px', borderRadius: '8px', width: '400px', maxWidth: '90%' }}>
-                        <h2>{selectedDriver.name}</h2>
-                        <p><b>Email:</b> {selectedDriver.email}</p>
-                        <p><b>Phone:</b> {selectedDriver.phone || "N/A"}</p>
+                    background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(5px)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000
+                }} onClick={closeModal}>
+                    <div className="card" style={{ width: '450px', maxWidth: '90%', animation: 'fadeIn 0.2s ease' }} onClick={e => e.stopPropagation()}>
+                        <h2 style={{ color: 'var(--primary)', marginTop: 0 }}>{selectedDriver.name}</h2>
+                        <div style={{ display: 'grid', gap: '0.5rem', marginBottom: '1.5rem', color: 'var(--text-muted)' }}>
+                            <div>📧 {selectedDriver.email}</div>
+                            <div>📞 {selectedDriver.phone || "N/A"}</div>
+                        </div>
 
                         {selectedDriver.isApproved && (
-                            <>
-                                <p><b>Status:</b> {selectedDriver.onDuty ? '🟢 On Duty' : '🔴 Off Duty'}</p>
-                                <p><b>Hardship Avg:</b> {selectedDriver.averageHardshipScore?.toFixed(1) || 0}</p>
-                                <hr />
-                                <h3>Assigned Route</h3>
+                            <div style={{ background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: 'var(--radius-md)', marginBottom: '1.5rem' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                                    <span>Status</span>
+                                    <span style={{ color: selectedDriver.onDuty ? 'var(--secondary)' : 'var(--accent)', fontWeight: 'bold' }}>{selectedDriver.onDuty ? '🟢 On Duty' : '🔴 Off Duty'}</span>
+                                </div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                                    <span>Hardship Score</span>
+                                    <span>{selectedDriver.averageHardshipScore?.toFixed(1) || 0}</span>
+                                </div>
+                                <hr style={{ opacity: 0.1, margin: '1rem 0' }} />
+
+                                <h4 style={{ marginTop: 0 }}>Assigned Route</h4>
                                 {driverRoute ? (
-                                    <div>
-                                        <p><b>Region:</b> {driverRoute.region}</p>
-                                        <p><b>Stops:</b> {driverRoute.numberOfStops}</p>
-                                        <p><b>Distance:</b> {driverRoute.totalDistance} km</p>
-                                        <p><b>Score Breakdown:</b></p>
-                                        <ul style={{ fontSize: '0.9em', color: '#555', paddingLeft: '20px', marginTop: '5px' }}>
-                                            <li>Base (Dist/Stops): {(driverRoute.routeHardshipScore - (driverRoute.modeScore || 0) - (driverRoute.priorityScore || 0)).toFixed(1)}</li>
-                                            <li>Mode Difficulty: +{driverRoute.modeScore || 0}</li>
-                                            <li>Priority Bonus: +{driverRoute.priorityScore || 0}</li>
-                                        </ul>
-                                        <p><b>Total Hardship Score:</b> <b style={{ color: '#d9534f' }}>{driverRoute.routeHardshipScore?.toFixed(1)}</b></p>
+                                    <div style={{ fontSize: '0.9rem' }}>
+                                        <div style={{ marginBottom: '0.5rem' }}><b>Region:</b> {driverRoute.region}</div>
+                                        <div style={{ marginBottom: '0.5rem' }}><b>Stats:</b> {driverRoute.numberOfStops} stops • {driverRoute.totalDistance} km</div>
+                                        <div><b>Total Difficulty:</b> <span style={{ color: 'var(--accent)', fontWeight: 'bold' }}>{driverRoute.routeHardshipScore?.toFixed(1)}</span></div>
                                     </div>
                                 ) : (
-                                    <p><i>No route currently assigned.</i></p>
+                                    <div style={{ fontStyle: 'italic', color: 'var(--text-muted)' }}>No route assigned today.</div>
                                 )}
-                            </>
+                            </div>
                         )}
-                        <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
-                            <button onClick={closeModal} style={{ flex: 1, padding: '10px', background: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Close</button>
+
+                        <div style={{ display: 'flex', gap: '10px' }}>
+                            <button onClick={closeModal} className="btn" style={{ flex: 1, background: 'var(--bg-card-hover)' }}>Close</button>
 
                             {!selectedDriver.isApproved ? (
                                 <>
-                                    <button onClick={() => { handleApprove(selectedDriver._id); closeModal(); }} style={{ flex: 1, padding: '10px', background: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Approve</button>
-                                    <button onClick={handleDeleteDriver} style={{ flex: 1, padding: '10px', background: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Not Approve</button>
+                                    <button onClick={() => { handleApprove(selectedDriver._id); closeModal(); }} className="btn btn-secondary" style={{ flex: 1 }}>Approve</button>
+                                    <button onClick={handleDeleteDriver} className="btn" style={{ flex: 1, background: 'var(--accent)', color: 'white' }}>Rejcet</button>
                                 </>
                             ) : (
-                                <button onClick={handleDeleteDriver} style={{ flex: 1, padding: '10px', background: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Remove Driver</button>
+                                <button onClick={handleDeleteDriver} className="btn" style={{ flex: 1, background: 'rgba(244, 63, 94, 0.2)', color: 'var(--accent)', border: '1px solid var(--accent)' }}>Remove Driver</button>
                             )}
                         </div>
                     </div>
                 </div>
             )}
-
-            <div style={{ marginBottom: '20px' }}>
-                <input type="file" id="csvFile" accept=".csv" />
-                <button
-                    onClick={processCSV}
-                    style={{
-                        marginLeft: '10px',
-                        padding: '8px 16px',
-                        backgroundColor: '#007bff',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer'
-                    }}
-                >
-                    Process Orders
-                </button>
-                <button
-                    onClick={async () => {
-                        if (window.confirm("Are you sure you want to RESET all routes? This will delete current assignments.")) {
-                            try {
-                                const res = await fetch("/api/admin/reset-routes", { method: "DELETE" });
-                                const data = await res.json();
-                                alert(data.message);
-                                window.location.reload(); // Reload to clear map and state
-                            } catch (err) {
-                                alert("Failed to reset routes");
-                            }
-                        }
-                    }}
-                    style={{
-                        marginLeft: '10px',
-                        padding: '8px 16px',
-                        backgroundColor: '#dc3545', // Red for danger/reset
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer'
-                    }}
-                >
-                    Reset Routes 🔄
-                </button>
-            </div>
-
-            <div style={{ display: 'flex', gap: '20px' }}>
-                <div
-                    id="map"
-                    ref={mapRef}
-                    style={{ height: '500px', width: '70%', borderRadius: '8px', border: '1px solid #ddd' }}
-                ></div>
-
-                <div
-                    id="results"
-                    style={{
-                        width: '30%',
-                        maxHeight: '500px',
-                        overflowY: 'auto',
-                        backgroundColor: '#f8f9fa',
-                        padding: '10px',
-                        borderRadius: '8px'
-                    }}
-                >
-                    <h3>Results will appear here...</h3>
-                </div>
-            </div>
         </div>
     );
 };
